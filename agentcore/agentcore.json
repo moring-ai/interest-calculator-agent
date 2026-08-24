@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "InterestCalculatorAgent",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "InterestCalculatorAgent"
+  },
+  "runtimes": [
+    {
+      "name": "InterestCalculatorAgent",
+      "description": "Interest-rate analyst agent. Tools live in an MCP server run by ToolHive.",
+      "build": "Container",
+      "dockerfile": "Dockerfile",
+      "buildContextPath": "agent/",
+      "entrypoint": "main.py",
+      "codeLocation": "agent/",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "envVars": [
+        {
+          "name": "MCP_SERVER_URL",
+          "value": "https://3-140-24-37.sslip.io/mcp"
+        },
+        {
+          "name": "MCP_TOKEN_SSM_PARAM",
+          "value": "/interest-mcp/mcp-token"
+        }
+      ],
+      "additionalPolicies": [
+        "runtime-policy.json"
+      ]
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}

@@ -1,0 +1,20 @@
+[project]
+name = "interest-tools"
+version = "0.1.0"
+description = "The tool layer: composes finance_core + rate_feed into agent tools and API responses."
+requires-python = ">=3.10"
+dependencies = ["finance-core", "rate-feed"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.uv.sources]
+finance-core = { path = "../finance_core", editable = true }
+rate-feed = { path = "../rate_feed", editable = true }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["interest_tools*"]

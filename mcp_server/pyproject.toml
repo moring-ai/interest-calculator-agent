@@ -1,0 +1,24 @@
+[project]
+name = "interest-mcp-server"
+version = "0.1.0"
+description = "MCP server exposing the deterministic interest-calculator tools."
+requires-python = ">=3.10"
+dependencies = [
+    "mcp~=1.24.0",
+    "pydantic>=2.7",
+    "finance-core",
+    "rate-feed",
+    "interest-tools",
+]
+
+[tool.uv.sources]
+finance-core = { path = "../packages/finance_core", editable = true }
+rate-feed = { path = "../packages/rate_feed", editable = true }
+interest-tools = { path = "../packages/interest_tools", editable = true }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["server"]

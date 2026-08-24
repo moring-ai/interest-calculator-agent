@@ -1,0 +1,155 @@
+#cloud-config
+# Bootstraps the ToolHive host.
+#
+# Layout once this finishes:
+#   Caddy (container, ports 80/443) -- TLS + bearer-token check
+#     -> ToolHive proxy on 127.0.0.1:8080
+#       -> MCP server container (from ECR)
+#
+# ToolHive needs a real container runtime to spawn MCP servers, which is why
+# this is an EC2 instance rather than Fargate.
+
+package_update: true
+packages:
+  - docker
+  - jq
+  - tar
+  - gzip
+
+write_files:
+  # Caddy terminates TLS and refuses anything without the right bearer token,
+  # so the MCP server itself never has to implement auth.
+  - path: /opt/interest-mcp/Caddyfile
+    permissions: "0644"
+    content: |
+      {
+        admin off
+      }
+
+      ${mcp_host} {
+        encode zstd gzip
+
+        @authorized header Authorization "Bearer {env.MCP_TOKEN}"
+
+        handle @authorized {
+          reverse_proxy 127.0.0.1:8080 {
+            # MCP streams responses; buffering would defeat that.
+            flush_interval -1
+          }
+        }
+
+        handle {
+          respond "Unauthorized" 401
+        }
+      }
+
+  - path: /opt/interest-mcp/start.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Brings up Caddy, then runs the MCP server under ToolHive in the
+      # FOREGROUND so systemd supervises the proxy directly.
+      #
+      # Foreground matters: `thv run` without it returns immediately and leaves
+      # the proxy as a detached child, which systemd then kills along with the
+      # rest of the unit's cgroup. The workload is left registered but dead,
+      # nothing listens on 8080, and Caddy answers 502.
+      set -euo pipefail
+
+      REGION="${region}"
+      ECR_REPO="${ecr_repo}"
+      IMAGE="$${ECR_REPO}:latest"
+      NAME="${name}"
+
+      echo "==> Reading secrets from SSM"
+      MCP_TOKEN="$(aws ssm get-parameter --region "$REGION" \
+        --name "${token_param}" --with-decryption \
+        --query 'Parameter.Value' --output text)"
+
+      FRED_KEY=""
+      if [ -n "${fred_param}" ]; then
+        FRED_KEY="$(aws ssm get-parameter --region "$REGION" \
+          --name "${fred_param}" --with-decryption \
+          --query 'Parameter.Value' --output text 2>/dev/null || echo "")"
+      fi
+
+      echo "==> Logging in to ECR"
+      aws ecr get-login-password --region "$REGION" \
+        | docker login --username AWS --password-stdin "$${ECR_REPO%%/*}"
+
+      echo "==> Pulling $IMAGE"
+      docker pull "$IMAGE"
+
+      echo "==> (Re)starting Caddy"
+      docker rm -f caddy >/dev/null 2>&1 || true
+      docker run -d --name caddy --restart unless-stopped \
+        --network host \
+        -e "MCP_TOKEN=$MCP_TOKEN" \
+        -v /opt/interest-mcp/Caddyfile:/etc/caddy/Caddyfile:ro \
+        -v caddy_data:/data \
+        -v caddy_config:/config \
+        caddy:2-alpine
+
+      # Clear any workload left over from a previous run. `thv rm` takes no -f.
+      echo "==> Clearing stale ToolHive workload (if any)"
+      thv stop "$NAME" >/dev/null 2>&1 || true
+      thv rm "$NAME" >/dev/null 2>&1 || true
+
+      # Bind the ToolHive proxy to loopback only. Caddy runs with --network
+      # host so it reaches 127.0.0.1:8080 fine, and ToolHive's own proxy does
+      # no authentication -- binding it to 0.0.0.0 would mean a single security
+      # group mistake exposes every tool unauthenticated.
+      echo "==> Running $NAME under ToolHive (foreground)"
+      exec thv run \
+        --foreground \
+        --name "$NAME" \
+        --transport streamable-http \
+        --host 127.0.0.1 \
+        --proxy-port 8080 \
+        --target-port 8000 \
+        -e "ALLOW_SYNTHETIC_RATES=true" \
+        $${FRED_KEY:+-e "FRED_API_KEY=$FRED_KEY"} \
+        "$IMAGE"
+
+  - path: /etc/systemd/system/interest-mcp.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Interest Calculator MCP server (ToolHive + Caddy)
+      After=docker.service network-online.target
+      Requires=docker.service
+      Wants=network-online.target
+
+      [Service]
+      # Type=simple, not oneshot: start.sh execs `thv run --foreground`, so the
+      # proxy IS the main process and systemd can supervise and restart it.
+      Type=simple
+      ExecStart=/opt/interest-mcp/start.sh
+      Restart=always
+      RestartSec=15
+      TimeoutStartSec=600
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker ec2-user
+
+  # ToolHive ships prebuilt binaries; pick the arm64 asset from the latest release.
+  - |
+    set -eux
+    THV_URL="$(curl -fsSL https://api.github.com/repos/stacklok/toolhive/releases/latest \
+      | jq -r '.assets[] | select(.name | test("linux_arm64\\.tar\\.gz$")) | .browser_download_url' \
+      | head -1)"
+    if [ -z "$THV_URL" ] || [ "$THV_URL" = "null" ]; then
+      echo "could not resolve a ToolHive arm64 release asset" >&2
+      exit 1
+    fi
+    curl -fsSL "$THV_URL" -o /tmp/toolhive.tar.gz
+    tar -xzf /tmp/toolhive.tar.gz -C /tmp
+    install -m 0755 /tmp/thv /usr/local/bin/thv
+    /usr/local/bin/thv version || true
+
+  - systemctl daemon-reload
+  - systemctl enable --now interest-mcp.service

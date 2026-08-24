@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets & local env
+.env
+.env.local
+agentcore/.env.local
+*.pem
+
+# TLS trust bundle (machine-specific, see scripts/env.sh)
+.certs/
+
+# AWS / CDK / AgentCore build output
+cdk.out/
+agentcore/.cli/
+agentcore/.cache/
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# OS
+.DS_Store
+
+# Saved plans are build output (and may carry resource values)
+tfplan
+*.tfplan
