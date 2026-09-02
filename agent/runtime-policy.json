@@ -5,14 +5,14 @@
       "Sid": "ReadMcpBearerToken",
       "Effect": "Allow",
       "Action": ["ssm:GetParameter"],
-      "Resource": "arn:aws:ssm:us-east-2:754039697525:parameter/interest-mcp/mcp-token"
+      "Resource": "arn:aws:ssm:*:*:parameter/interest-mcp/mcp-token"
     },
     {
       "Sid": "DecryptThatParameter",
       "Effect": "Allow",
       "Action": ["kms:Decrypt"],
       "Resource": "*",
-      "Condition": { "StringEquals": { "kms:ViaService": "ssm.us-east-2.amazonaws.com" } }
+      "Condition": { "StringLike": { "kms:ViaService": "ssm.*.amazonaws.com" } }
     }
   ]
 }

@@ -10,7 +10,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HERE/.." && pwd)"
 TF_DIR="$REPO_ROOT/infra/toolhive"
-REGION="${AWS_REGION:-us-east-2}"
+REGION="${AWS_REGION:-us-east-1}"
 
 cd "$TF_DIR"
 ECR_REPO="$(terraform output -raw ecr_repository_url)"

@@ -1,7 +1,7 @@
 variable "region" {
   description = "AWS region. Must match the region the AgentCore runtime lives in."
   type        = string
-  default     = "us-east-2"
+  default     = "us-east-1"
 }
 
 variable "name" {
