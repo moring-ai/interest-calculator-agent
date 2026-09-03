@@ -14,6 +14,7 @@ dependencies = [
     "boto3 >= 1.35.0",
     "botocore[crt] >= 1.35.0",
     "mcp ~= 1.24.0",
+    "openai >= 1.55",
     "strands-agents >= 1.15.0",
 ]
 

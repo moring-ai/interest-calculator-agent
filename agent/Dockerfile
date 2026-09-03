@@ -23,6 +23,7 @@ RUN uv pip install --no-cache \
         "aws-opentelemetry-distro" \
         "bedrock-agentcore>=1.9.1" \
         "boto3>=1.35.0" "botocore[crt]>=1.35.0" \
+        "openai>=1.55" \
         "mcp~=1.24.0" \
         "strands-agents>=1.15.0"
 
