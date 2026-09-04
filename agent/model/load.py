@@ -46,6 +46,12 @@ GATEWAY_KEY_VARS = (
     "OPENAI_API_KEY",
 )
 
+#: Which model to ask the gateway for. AICP injects `AGENT_MODEL`; the longer
+#: `AGENT_MODEL_ID` is what this repo used before and is kept so a CLI deploy
+#: kept working. Reading only one of them means the other is silently ignored
+#: and the request goes out with a model name the gateway has never heard of.
+MODEL_ID_VARS = ("AGENT_MODEL_ID", "AGENT_MODEL")
+
 
 def _first_env(names: tuple[str, ...]) -> tuple[str | None, str | None]:
     """Return the first (name, value) pair that is set and non-empty."""
@@ -58,7 +64,9 @@ def _first_env(names: tuple[str, ...]) -> tuple[str | None, str | None]:
 
 def load_model():
     """Build the model client, preferring a gateway when one is configured."""
-    model_id = os.environ.get("AGENT_MODEL_ID", DEFAULT_MODEL_ID)
+    model_var, model_id = _first_env(MODEL_ID_VARS)
+    if not model_id:
+        model_var, model_id = "default", DEFAULT_MODEL_ID
     temperature = float(os.environ.get("AGENT_TEMPERATURE", "0.2"))
 
     url_var, base_url = _first_env(GATEWAY_URL_VARS)
@@ -77,8 +85,9 @@ def load_model():
             )
 
         logger.info(
-            "Routing model calls through the gateway at %s (from %s, auth=%s), model=%s",
-            base_url, url_var, bool(api_key), model_id,
+            "Routing model calls through the gateway at %s (from %s, auth=%s), "
+            "model=%s (from %s)",
+            base_url, url_var, bool(api_key), model_id, model_var,
         )
 
         return OpenAIModel(
